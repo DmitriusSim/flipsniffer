@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FlipQuest // Bedniy vs Bad</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg: #000000;
+            --sticker-border: #ffffff;
+            --neon-purple: #7b2cbf;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(var(--neon-purple) 1px, transparent 1px),
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.02) 2px, rgba(255,255,255,0.02) 4px);
+            background-size: 30px 30px, 100% 4px;
+            color: white;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            touch-action: none; /* Prevents scrolling while playing */
+        }
+
+        /* --- RESPONSIVE SCALING --- */
+        #game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transform-origin: center;
+        }
+
+        #game-container {
+            width: 850px;
+            height: 550px;
+            border: 8px solid var(--sticker-border);
+            border-radius: 45px;
+            position: relative;
+            background: #080808;
+            box-shadow: 20px 20px 0px var(--neon-purple);
+            overflow: hidden;
+        }
+
+        /* --- THE PLAYER & MALWARE --- */
+        #player {
+            position: absolute;
+            width: 80px;
+            z-index: 100;
+            filter: drop-shadow(0 0 0 3px white) drop-shadow(0 0 10px var(--neon-purple));
+            transition: transform 0.1s ease;
+        }
+
+        .malware {
+            position: absolute;
+            width: 65px;
+            z-index: 50;
+            filter: drop-shadow(0 0 0 3px white) drop-shadow(0 0 10px #ff0055);
+        }
+
+        .data-packet {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #00ffcc;
+            border: 3px solid white;
+            transform: rotate(45deg);
+            box-shadow: 0 0 15px #00ffcc;
+        }
+
+        .hud {
+            position: absolute;
+            top: 25px;
+            left: 25px;
+            background: rgba(0,0,0,0.85);
+            border: 3px solid white;
+            padding: 10px 25px;
+            border-radius: 15px;
+            z-index: 200;
+            box-shadow: 5px 5px 0px var(--neon-purple);
+        }
+
+        .game-over {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        /* --- MOBILE CONTROLS --- */
+        #mobile-controls {
+            display: none; /* Hidden on desktop */
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 2000;
+        }
+
+        .touch-btn {
+            width: 80px;
+            height: 80px;
+            background: white;
+            border: 4px solid var(--neon-purple);
+            border-radius: 50%;
+            color: black;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(123, 44, 191, 0.5);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .touch-btn:active {
+            transform: scale(0.9);
+            background: var(--neon-purple);
+            color: white;
+        }
+
+        @media (pointer: coarse) {
+            #mobile-controls { display: flex; }
+        }
+
+        /* Shake Animation */
+        .shake { animation: shake 0.2s; border-color: #ff0055 !important; }
+        @keyframes shake {
+            0% { transform: translate(2px, 2px); }
+            25% { transform: translate(-2px, -2px); }
+            50% { transform: translate(2px, -2px); }
+            75% { transform: translate(-2px, 2px); }
+            100% { transform: translate(0, 0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <div id="game-container">
+            <div class="hud">
+                <h2 class="font-black text-xl italic tracking-tighter">FLIP_NET // SNIFFER</h2>
+                <div id="score" class="text-green-400 font-bold">SNIFFED: 0000</div>
+            </div>
+
+            <img src="bedniy.png" id="player" style="top: 250px; left: 50px;">
+
+            <div id="game-over" class="game-over">
+                <h1 class="text-4xl md:text-6xl font-black italic text-red-500 mb-2">MALWARE_DETECTED</h1>
+                <p class="mb-8 text-white uppercase tracking-widest font-bold text-center px-4">Bad.png has corrupted the sniff</p>
+                <button onclick="resetGame()" class="bg-white text-black px-12 py-4 rounded-full font-black text-xl hover:bg-purple-600 hover:text-white transition transform hover:scale-110">RELOAD_FLIP</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="mobile-controls">
+        <div class="touch-btn" onpointerdown="movePlayer('up')">▲</div>
+        <div class="touch-btn" onpointerdown="movePlayer('down')">▼</div>
+    </div>
+
+    <script>
+        const container = document.getElementById('game-container');
+        const wrapper = document.getElementById('game-wrapper');
+        const player = document.getElementById('player');
+        const scoreEl = document.getElementById('score');
+        const gameOverEl = document.getElementById('game-over');
+
+        let score = 0;
+        let playerY = 250;
+        let isGameOver = false;
+        let objects = [];
+
+        // --- AUTO-RESOLUTION SCALING ---
+        function resizeGame() {
+            const scale = Math.min(
+                (window.innerWidth * 0.95) / 850,
+                (window.innerHeight * 0.95) / 550
+            );
+            wrapper.style.transform = `scale(${scale})`;
+        }
+        window.addEventListener('resize', resizeGame);
+        resizeGame();
+
+        // Movement Logic
+        function movePlayer(dir) {
+            if(isGameOver) return;
+            const speed = 40;
+            if(dir === 'up' && playerY > 30) playerY -= speed;
+            if(dir === 'down' && playerY < 440) playerY += speed;
+            player.style.top = playerY + 'px';
+            
+            player.style.transform = `rotate(${dir === 'up' ? -10 : 10}deg)`;
+            setTimeout(() => player.style.transform = 'rotate(0deg)', 100);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if(e.key === 'ArrowUp' || e.key === 'w') movePlayer('up');
+            if(e.key === 'ArrowDown' || e.key === 's') movePlayer('down');
+        });
+
+        function createObject(type) {
+            if(isGameOver) return;
+            const obj = document.createElement(type === 'malware' ? 'img' : 'div');
+            if(type === 'malware') obj.src = 'bad.png';
+            obj.className = type === 'malware' ? 'malware' : 'data-packet';
+            obj.style.left = '900px';
+            obj.style.top = (Math.random() * 450 + 50) + 'px';
+            container.appendChild(obj);
+            objects.push({ element: obj, type: type });
+        }
+
+        function update() {
+            if(isGameOver) return;
+            for(let i = objects.length - 1; i >= 0; i--) {
+                let o = objects[i];
+                let left = parseInt(o.element.style.left);
+                left -= (o.type === 'malware' ? 8 : 5);
+                o.element.style.left = left + 'px';
+
+                let pRect = player.getBoundingClientRect();
+                let oRect = o.element.getBoundingClientRect();
+
+                if (pRect.left < oRect.right && pRect.right > oRect.left &&
+                    pRect.top < oRect.bottom && pRect.bottom > oRect.top) {
+                    if(o.type === 'malware') {
+                        triggerGameOver();
+                    } else {
+                        score += 50;
+                        scoreEl.innerText = `SNIFFED: ${score.toString().padStart(4, '0')}`;
+                        o.element.remove();
+                        objects.splice(i, 1);
+                    }
+                }
+                if(left < -100) {
+                    o.element.remove();
+                    objects.splice(i, 1);
+                }
+            }
+            requestAnimationFrame(update);
+        }
+
+        function triggerGameOver() {
+            isGameOver = true;
+            container.classList.add('shake');
+            setTimeout(() => {
+                gameOverEl.style.display = 'flex';
+                container.classList.remove('shake');
+            }, 300);
+        }
+
+        function resetGame() {
+            score = 0;
+            scoreEl.innerText = "SNIFFED: 0000";
+            isGameOver = false;
+            gameOverEl.style.display = 'none';
+            playerY = 250;
+            player.style.top = playerY + 'px';
+            objects.forEach(o => o.element.remove());
+            objects = [];
+            update();
+        }
+
+        setInterval(() => createObject('data'), 1500);
+        setInterval(() => createObject('malware'), 2000);
+        update();
+    </script>
+</body>
+</html>
